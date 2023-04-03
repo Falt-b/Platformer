@@ -106,7 +106,7 @@ class Animator(Animation_Clock):
 		self.held_time = 0
 
 	def animate(self):
-		if self.hold and self.held_time > self.hold_timer and self.frame_complete:
+		if self.hold and self.held_time > self.hold_timer:
 			self.hold = False
 		if (
 			self.hold and 
@@ -116,9 +116,7 @@ class Animator(Animation_Clock):
 			self.current_state = self.held_state
 
 		if self.current_state != self.last_state:
-			if (
-				self.frame_complete
-			):
+			if self.frame_complete:
 				self.current_state == self.last_state
 			else:
 				self.frame = 0

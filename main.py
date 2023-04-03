@@ -68,7 +68,6 @@ def main():
 
 	while True:
 		dt = time.time() - last_time
-		dt *= 60
 		last_time = time.time()
 
 		for event in pygame.event.get():
@@ -80,9 +79,8 @@ def main():
 
 		display.fill((0, 135, 81))
 
-		p1.update([t1], dt)
+		p1.update(2.5, [t1], dt)
 		p1.draw(display)
-		#pygame.draw.rect(display, (255, 0, 0), p1.rect, 1)
 		t_group.draw(display)
 
 		pygame.display.update()
