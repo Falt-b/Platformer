@@ -24,9 +24,11 @@ class Player(pygame.sprite.Sprite):
 		self.direction = pygame.Vector2()
 		self.last_input = pygame.Vector2()
 		self.on_ground = False
+		self.last_on_ground = 0
 		self.has_jump = False
-		self.last_jump = 0
-		self.jump_time = 500
+		self.jump_pressed = False
+		self.gravity_mul = 1
+		self.jump_frame = 0
 		
 		self.animator = animator
 		self.flipped = False
@@ -34,8 +36,8 @@ class Player(pygame.sprite.Sprite):
 		self.accel_speed = .1
 		self.friction = .25
 		self.max_speed = 400
-		self.max_fall = 50
-		self.jump_force = -500
+		self.max_fall = 600
+		self.jump_force = -180
 
 	def get_input(self):
 		keys = pygame.key.get_pressed()
@@ -49,7 +51,7 @@ class Player(pygame.sprite.Sprite):
 		if keys[pygame.K_s]:
 			self.direction.y = 1
 
-	def x_movement(self, dt: float):
+	def x_movement(self):
 		if (
 			self.last_input.x == self.direction.x * -1 and
 			self.last_input.x != 0
@@ -61,28 +63,31 @@ class Player(pygame.sprite.Sprite):
 		self.acceleration = max(min(self.acceleration, 1), 0)
 		self.velocity.x = (
 			self.acceleration * self.direction.x * self.max_speed
-		) * dt
+		)
 
-	def y_movement(self, gravity: float, dt: float):
+	def y_movement(self, gravity: float):
 		if (
-			self.last_input.y == -1 and 
 			self.direction.y == -1 and 
-			pygame.time.get_ticks() - self.last_jump < self.jump_time
+			self.has_jump 
 		):
-			self.velocity.y += gravity * .85 * dt
-		else:
-			self.velocity.y += gravity * dt
+			self.velocity.y = self.jump_force
+			self.jump_pressed = True
+			self.has_jump = False
+			self.gravity_mul = .45
 		if (
-			self.has_jump and
-			self.direction.y == -1 and
-			self.on_ground
+			self.jump_pressed and 
+			self.direction.y != -1 or 
+			self.velocity.y > 0 and 
+			self.jump_pressed
 		):
-			self.velocity.y = self.jump_force * dt
-			self.last_jump = pygame.time.get_ticks()
+			self.jump_pressed = False
+			self.gravity_mul = 1
+		self.velocity.y += gravity * self.gravity_mul
 		self.velocity.y = min(self.velocity.y, self.max_fall)
+		self.velocity.y
 
-	def x_collisions(self, collide_objects: list[pygame.sprite.Sprite]):
-		self.position.x += self.velocity.x
+	def x_collisions(self, dt: float, collide_objects: list[pygame.sprite.Sprite]):
+		self.position.x += self.velocity.x * dt
 		self.rect.topleft = (round(self.position.x), self.rect.topleft[1])
 		for game_object in collide_objects:
 			if self.rect.colliderect(game_object.rect):
@@ -100,8 +105,8 @@ class Player(pygame.sprite.Sprite):
 				self.velocity.x = 0
 				self.acceleration = 0
 
-	def y_collisions(self, collide_objects: list[pygame.sprite.Sprite]):
-		self.position.y += self.velocity.y
+	def y_collisions(self, dt: float, collide_objects: list[pygame.sprite.Sprite]):
+		self.position.y += self.velocity.y * dt
 		self.rect.topleft = (self.rect.topleft[0], round(self.position.y))
 		for game_object in collide_objects:
 			if self.rect.colliderect(game_object.rect):
@@ -130,12 +135,27 @@ class Player(pygame.sprite.Sprite):
 			self.animator.set_state("Idle")
 		if self.velocity.x != 0 and self.on_ground:
 			self.animator.set_state("Run")
+		if not self.on_ground:
+			pass
+		if self.jump_pressed and not self.on_ground or not self.has_jump:
+			self.jump_frame = (
+				(self.velocity.y - self.jump_force) / (self.max_fall - self.jump_force) * 5
+			)
+			self.animator.hold_frame("Jump", "Idle", round(self.jump_frame), 1)
 		if (
-			self.animator.last_state != "Idle" and
-			self.animator.last_state != "Transition" and
+			self.animator.last_state == "Jump" and
+			self.animator.last_state != "Land" and
 			self.animator.current_state == "Idle"
 		):
-			self.animator.hold_frame("Transition", "Idle", 0, 4)
+			self.animator.hold_frame("Land", "Idle", 0, 3)
+		if (
+			self.animator.last_state != "Land" and
+			self.animator.last_state != "Transition" and
+			self.animator.last_state != "Idle" and
+			self.animator.current_state == "Idle"
+		):
+			self.animator.hold_frame("Transition", "Idle", 0, 3)
+
 
 		if self.velocity.x < 0:
 			self.flipped = True
@@ -144,10 +164,10 @@ class Player(pygame.sprite.Sprite):
 
 	def update(self, gravity: float, all_objects: list[pygame.sprite.Sprite], dt: float):
 		self.get_input()
-		self.x_movement(dt)
-		self.y_movement(gravity, dt)
-		self.x_collisions(all_objects)
-		self.y_collisions(all_objects)
+		self.x_movement()
+		self.y_movement(gravity)
+		self.x_collisions(dt, all_objects)
+		self.y_collisions(dt, all_objects)
 		self.last_input = self.direction
 		self.set_animation()
 		self.player_image = self.animator.animate()

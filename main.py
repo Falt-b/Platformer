@@ -39,27 +39,38 @@ def main():
 	t_group = pygame.sprite.Group()
 	t1 = Tile(pygame.Vector2(0, 700), 800, 5000, (0, 0, 0), t_group)
 	
+	player_scale = 4
 	player_animator = Animator(100)
 	player_animator.init_state(
 		"Idle",
 		"Triangle_Man_Sprites.png",
-		0, 8, 18, 17, 17, 8
+		0, 8, 18, 17, 17, player_scale
 	)
 	player_animator.init_state(
 		"Run",
 		"Triangle_Man_Sprites.png",
-		0, 0, 8, 17, 17, 8
+		0, 0, 8, 17, 17, player_scale
 	)
 	player_animator.init_state(
 		"Transition",
 		"Triangle_Man_Sprites.png",
-		0, 18, 19, 17, 17, 8
+		0, 26, 27, 17, 17, player_scale
+	)
+	player_animator.init_state(
+		"Jump",
+		"Triangle_Man_Sprites.png",
+		0, 19, 25, 17, 17, player_scale
+	)
+	player_animator.init_state(
+		"Land",
+		"Triangle_Man_Sprites.png",
+		0, 25, 26, 17, 17, player_scale
 	)
 	p1 = Player(
 		(0, 0),
 		17,
 		17,
-		8,
+		player_scale,
 		player_animator,
 		p_group
 	)
@@ -81,6 +92,7 @@ def main():
 
 		p1.update(2.5, [t1], dt)
 		p1.draw(display)
+		#pygame.draw.rect(display, (255, 0, 0), p1.rect, 1)
 		t_group.draw(display)
 
 		pygame.display.update()

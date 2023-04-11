@@ -66,9 +66,7 @@ class Animator(Animation_Clock):
 		self.next_state = "Idle"
 		self.hold_timer = 2
 		self.held_time = 0
-		self.animation_index = {
-			"Idle": [], "Transition": [], "Run": [], "Jump": []
-		}
+		self.animation_index = {}
 
 	def init_state(
 		self, 
@@ -110,6 +108,13 @@ class Animator(Animation_Clock):
 			self.hold = False
 		if (
 			self.hold and 
+			self.current_state != self.held_state and 
+			self.current_state != self.next_state and
+			self.frame_complete
+		):
+			self.hold = False
+		if (
+			self.hold and 
 			self.current_state == self.next_state and 
 			self.held_time < self.hold_timer
 		):
@@ -126,11 +131,12 @@ class Animator(Animation_Clock):
 		self.held_time += frame_update[0]
 		self.frame_complete = frame_update[1]
 
+		if self.frame > len(self.animation_index[self.current_state]) - 1:
+			self.frame = 0
+
 		if self.hold and self.frame != self.held_frame:
 			self.frame = self.held_frame
 
-		if self.frame > len(self.animation_index[self.current_state]) - 1:
-			self.frame = 0
 		self.last_state = self.current_state
 		return self.animation_index[self.current_state][self.frame]
 
