@@ -3,34 +3,41 @@ from animator import Animator
 
 class Player(pygame.sprite.Sprite):
 	def __init__(
-		self, 
-		position: tuple, 
-		width: int, 
-		height: int, 
-		color: tuple, 
-		animator: Animator
+		self,
+		position: pygame.Vector2,
+		width: int,
+		height: int,
+		scale: int,
+		animator: Animator,
 		*groups
 	):
 		super().__init__(*groups)
-		self.player_image = pygame.Surface((width, height))
-		self.rect = pygame.Rect(position, (width, height))
-		self.rect.topleft = position
 
-		self.animator = animator
-		self.player_flipped = False
-
-		# Player Settings
-		self.direction = pygame.Vector2()
-		self.last_input = pygame.Vector2()
+		self.rect = pygame.Rect(
+			position, 
+			(width * scale, height * scale)
+		)
+		self.img = animator.animation_index["Idle"][0]
+		self.position = pygame.Vector2(position)
 		self.velocity = pygame.Vector2()
 		self.acceleration = 0
-		self.accel_speed = .38
-		self.friction_force = .45
-		self.speed = 5
-		self.jump_speed = -16
-		self.has_jump = True
-		self.on_ground = True
-		self.max_fall_speed = 20
+		self.direction = pygame.Vector2()
+		self.last_input = pygame.Vector2()
+		self.on_ground = False
+		self.last_on_ground = 0
+		self.has_jump = False
+		self.jump_pressed = False
+		self.gravity_mul = 1
+		self.jump_frame = 0
+		
+		self.animator = animator
+		self.flipped = False
+
+		self.accel_speed = .1
+		self.friction = .25
+		self.max_speed = 400
+		self.max_fall = 600
+		self.jump_force = -180
 
 	def get_input(self):
 		keys = pygame.key.get_pressed()
@@ -46,90 +53,127 @@ class Player(pygame.sprite.Sprite):
 
 	def x_movement(self):
 		if (
-			self.last_input.x == self.direction.x * -1 and 
+			self.last_input.x == self.direction.x * -1 and
 			self.last_input.x != 0
 		):
 			self.acceleration = 0
 		self.acceleration += abs(self.direction.x) * self.accel_speed
 		if self.direction.x == 0:
-			self.acceleration -= self.friction_force
+			self.acceleration -= self.friction
 		self.acceleration = max(min(self.acceleration, 1), 0)
-		self.velocity.x = self.acceleration * self.direction.x * self.speed
+		self.velocity.x = (
+			self.acceleration * self.direction.x * self.max_speed
+		)
 
-	def y_movement(self):
-		self.velocity.y += 1 
-		if self.has_jump and self.direction.y == -1:
-			self.velocity.y = self.jump_speed
+	def y_movement(self, gravity: float):
+		if (
+			self.direction.y == -1 and 
+			self.has_jump 
+		):
+			self.velocity.y = self.jump_force
+			self.jump_pressed = True
 			self.has_jump = False
-			self.state = "Jump"
-		self.velocity.y = max(
-			min(self.velocity.y, self.max_fall_speed), -self.max_fall_speed
-		)
-		self.last_input = self.direction
-		self.on_ground = False
+			self.gravity_mul = .45
+		if (
+			self.jump_pressed and 
+			self.direction.y != -1 or 
+			self.velocity.y > 0 and 
+			self.jump_pressed
+		):
+			self.jump_pressed = False
+			self.gravity_mul = 1
+		self.velocity.y += gravity * self.gravity_mul
+		self.velocity.y = min(self.velocity.y, self.max_fall)
+		self.velocity.y
 
-	def x_collisions(self, collided_rects: list[pygame.Rect]):
-		self.rect.topleft = (
-			self.rect.topleft[0] + self.velocity.x, self.rect.topleft[1]
-		)
-		for rect in collided_rects:
-			if self.rect.colliderect(other.rect):
+	def x_collisions(self, dt: float, collide_objects: list[pygame.sprite.Sprite]):
+		self.position.x += self.velocity.x * dt
+		self.rect.topleft = (round(self.position.x), self.rect.topleft[1])
+		for game_object in collide_objects:
+			if self.rect.colliderect(game_object.rect):
 				if (
-					self.rect.right > other.rect.left and
-					self.rect.right < other.rect.right
+					self.rect.right > game_object.rect.left and
+					self.rect.right < game_object.rect.right
 				):
-					self.rect.right = other.rect.left
+					self.rect.right = game_object.rect.left
 				if (
-					self.rect.left < other.rect.right and
-					self.rect.left > other.rect.left
+					self.rect.left < game_object.rect.right and
+					self.rect.left > game_object.rect.left
 				):
-					self.rect.left = other.rect.right
+					self.rect.left = game_object.rect.right
+				self.position.x = self.rect.topleft[0]
 				self.velocity.x = 0
 				self.acceleration = 0
 
-	def y_collisions(self, collided_rects: list[pygame.Rect]):
-		self.rect.topleft = (
-			self.rect.topleft[0], self.rect.topleft[1] + self.velocity.y
-		)
-		for rect in collided_rects:
-			if self.rect.colliderect(other.rect):
+	def y_collisions(self, dt: float, collide_objects: list[pygame.sprite.Sprite]):
+		self.position.y += self.velocity.y * dt
+		self.rect.topleft = (self.rect.topleft[0], round(self.position.y))
+		for game_object in collide_objects:
+			if self.rect.colliderect(game_object.rect):
 				if (
-					self.rect.bottom > other.rect.top and
-					self.rect.bottom < other.rect.bottom
+					self.rect.bottom > game_object.rect.top and
+					self.rect.bottom < game_object.rect.bottom
 				):
-					self.rect.bottom = other.rect.top
+					self.rect.bottom = game_object.rect.top
 					self.has_jump = True
 					self.on_ground = True
 				if (
-					self.rect.top < other.rect.bottom and
-					self.rect.top > other.rect.top
+					self.rect.top < game_object.rect.bottom and
+					self.rect.top > game_object.rect.top
 				):
-					self.rect.top = other.rect.bottom
+					self.rect.top = game_object.rect.bottom
+				self.position.y = self.rect.topleft[1]
 				self.velocity.y = 0
 
-	def set_state(self):
+		if self.on_ground and self.velocity.y != 0:
+			self.on_ground = False
+		if self.on_ground:
+			self.velocity.y = 0
+
+	def set_animation(self):
 		if self.velocity.x == 0 and self.on_ground:
-			self.animator.current_state = "Idle"
+			self.animator.set_state("Idle")
 		if self.velocity.x != 0 and self.on_ground:
-			self.animator.current_state = "Run"
+			self.animator.set_state("Run")
+		if not self.on_ground:
+			pass
+		if self.jump_pressed and not self.on_ground or not self.has_jump:
+			self.jump_frame = (
+				(self.velocity.y - self.jump_force) / (self.max_fall - self.jump_force) * 5
+			)
+			self.animator.hold_frame("Jump", "Idle", round(self.jump_frame), 1)
+		if (
+			self.animator.last_state == "Jump" and
+			self.animator.last_state != "Land" and
+			self.animator.current_state == "Idle"
+		):
+			self.animator.hold_frame("Land", "Idle", 0, 3)
+		if (
+			self.animator.last_state != "Land" and
+			self.animator.last_state != "Transition" and
+			self.animator.last_state != "Idle" and
+			self.animator.current_state == "Idle"
+		):
+			self.animator.hold_frame("Transition", "Idle", 0, 3)
+
 
 		if self.velocity.x < 0:
-			self.player_flipped = True
+			self.flipped = True
 		if self.velocity.x > 0:
-			self.player_flipped = False
+			self.flipped = False
 
-	def update(self, all_rects: list[pygame.Rect]):
+	def update(self, gravity: float, all_objects: list[pygame.sprite.Sprite], dt: float):
 		self.get_input()
 		self.x_movement()
-		self.y_movement()
-		self.x_collisions(all_rects)
-		self.y_collisions(all_rects)
-		self.set_state()
-		self.player_image = self.amimator.animate()
-
+		self.y_movement(gravity)
+		self.x_collisions(dt, all_objects)
+		self.y_collisions(dt, all_objects)
+		self.last_input = self.direction
+		self.set_animation()
+		self.player_image = self.animator.animate()
 
 	def draw(self, surface: pygame.Surface):
 		self.player_image = pygame.transform.flip(
-			self.player_image, self.player_flipped, False
+			self.player_image, self.flipped, False
 		)
-		surface.blit(self.player_image, self.rect.topleft)
+		surface.blit(self.player_image, self.position)
