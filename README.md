@@ -4,6 +4,8 @@
 
 - [pygame]
 
+### Installation
+
 ```sh
 pip install -r requiremnts.txt
 ```

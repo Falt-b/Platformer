@@ -1,105 +1,92 @@
 import pygame
 import time
+import os
 from sys import exit
 from player import Player
-from animator import Animation_Clock, Animator
+from animator import Animator
+from level import Level
+from camera import Camera
 
-WIDTH = 800
-HEIGHT = 800
-
+WIDTH = 1920
+HEIGHT = 768
 
 
 class Tile(pygame.sprite.Sprite):
-	def __init__(
-		self, 
-		position: pygame.Vector2, 
-		width: int, 
-		height: int, 
-		color: tuple,
-		*groups
-	):
-		super().__init__(*groups)
-		self.position = position
-		self.image = pygame.Surface((width, height))
-		self.image.fill(color)
-		self.rect = self.image.get_rect()
-		self.rect.topleft = self.position
+    def __init__(
+        self, position: pygame.Vector2, width: int, height: int, color: tuple, *groups
+    ):
+        super().__init__(*groups)
+        self.position = position
+        self.image = pygame.Surface((width, height))
+        self.image.fill(color)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = self.position
 
 
 """------------- Main -------------"""
+
 
 def main():
-	pygame.init()
-	display = pygame.display.set_mode((WIDTH, HEIGHT))
-	pygame.display.set_caption("Platformer Test")
-	clock = pygame.time.Clock()
-	ac = Animation_Clock(100)
+    pygame.init()
+    display = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Platformer Test")
+    clock = pygame.time.Clock()
 
-	p_group = pygame.sprite.Group()
-	t_group = pygame.sprite.Group()
-	t1 = Tile(pygame.Vector2(0, 700), 800, 5000, (0, 0, 0), t_group)
-	
-	player_scale = 4
-	player_animator = Animator(100)
-	player_animator.init_state(
-		"Idle",
-		"Triangle_Man_Sprites.png",
-		0, 8, 18, 17, 17, player_scale
-	)
-	player_animator.init_state(
-		"Run",
-		"Triangle_Man_Sprites.png",
-		0, 0, 8, 17, 17, player_scale
-	)
-	player_animator.init_state(
-		"Transition",
-		"Triangle_Man_Sprites.png",
-		0, 26, 27, 17, 17, player_scale
-	)
-	player_animator.init_state(
-		"Jump",
-		"Triangle_Man_Sprites.png",
-		0, 19, 25, 17, 17, player_scale
-	)
-	player_animator.init_state(
-		"Land",
-		"Triangle_Man_Sprites.png",
-		0, 25, 26, 17, 17, player_scale
-	)
-	p1 = Player(
-		(0, 0),
-		17,
-		17,
-		player_scale,
-		player_animator,
-		p_group
-	)
+    player_scale = 4.5
+    player_animator = Animator(100)
+    player_animator.init_state(
+        "Idle", "Triangle_Man_Sprites.png", 0, 8, 18, 16, 17, player_scale
+    )
+    player_animator.init_state(
+        "Run", "Triangle_Man_Sprites.png", 0, 0, 8, 16, 17, player_scale
+    )
+    player_animator.init_state(
+        "Transition", "Triangle_Man_Sprites.png", 0, 22, 23, 16, 17, player_scale
+    )
+    player_animator.init_state(
+        "Jump", "Triangle_Man_Sprites.png", 0, 18, 21, 16, 17, player_scale
+    )
+    player_animator.init_state(
+        "Land", "Triangle_Man_Sprites.png", 0, 21, 22, 16, 17, player_scale
+    )
+    p1 = Player((300, 150), (12, 13), (16, 17), player_scale, player_animator, "Idle")
+    p1.animator.current_state = "Idle"
+    p1.animator.last_state = "Idle"
+    p1.animator.requested_state = ["Idle", False, 0, 0, []]
 
-	last_time = time.time()
+    test_level = Level()
+    test_level.load_level("Level_Files/testing_room.tmj", 4.5)
+    tc = Camera(800, 400, (560, 184))
+    tc.set_bounds(display, test_level)
 
-	while True:
-		dt = time.time() - last_time
-		last_time = time.time()
+    last_time = time.time()
 
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				return False
-			if event.type == pygame.KEYDOWN:
-				if event.key == pygame.K_ESCAPE:
-					return False
+    while True:
+        dt = time.time() - last_time
+        last_time = time.time()
 
-		display.fill((0, 135, 81))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
 
-		p1.update(2.5, [t1], dt)
-		p1.draw(display)
-		#pygame.draw.rect(display, (255, 0, 0), p1.rect, 1)
-		t_group.draw(display)
+        display.fill((255, 241, 232))
 
-		pygame.display.update()
+        p1.update(dt, 400, test_level.colliders)
+        p1.draw(display, tc.offset)
+        tc.update(p1, p1.max_speed, p1.max_fall, 300, 30, dt)
+        tc.draw(display, test_level)
+        pygame.draw.rect(display, (255, 0, 0), tc.view_box, 3)
+
+        pygame.display.update()
+
 
 """------------- Main -------------"""
 
-if __name__ == '__main__':
-	main()
-	pygame.quit()
-	exit()
+if __name__ == "__main__":
+    main()
+    pygame.quit()
+    exit()
+    # print(os.path.relpath("Level_Files/testing_room.tmj", start=os.curdir))
