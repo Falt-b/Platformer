@@ -36,7 +36,7 @@ class Hash_Map:
         dimensions = self.get_rect_dimensions(object.rect)
         for y in range(dimensions[1]):
             for x in range(dimensions[0]):
-                self.objects[dimensions[2] + x + (y * self.width)].append(object)
+                self.insert_object(object, dimensions[2] + x + (y * self.width))
 
     def remove_object(self, object: object, hash: int):
         # assumes that hash is known and object is already in list
@@ -64,4 +64,4 @@ class Hash_Map:
         for y in range(dimensions[1]):
             for x in range(dimensions[0]):
                 found_objects += self.query(dimensions[2] + x + (y * self.width))
-        return found_objects
+        return found_objects, dimensions

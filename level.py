@@ -1,37 +1,37 @@
 import pygame
 import json
 from animator import get_image
-from tiles import Tile
+from hash_map import Hash_Map
 
 
-class Level:
-    def __init__(self):
-        self.tiles = pygame.sprite.Group()
-        self.colliders = pygame.sprite.Group()
+class Tile(pygame.sprite.Sprite):
+    def __init__(
+        self,
+        image: pygame.Surface,
+        position: tuple,
+        width: int,
+        height: int,
+        collidable: bool,
+    ):
+        super().__init__()
+        self.image = image
+        self.rect = pygame.Rect(position, (width, height))
+        self.collidable = collidable
+
+class Level(Hash_Map):
+    def __init__(self, container_size: int, map_width: int):
+        super().__init__(container_size, map_width)
+        self.layers = {}
         self.tile_sets = []
-
+        self.hash_map = hash_map
         self.width = 0
         self.height = 0
-        self.center = (0, 0)
-        self.scale = 0
 
-    def set_dimensions(
-        self, width: int, height: int, tilewidth: int, tileheight: int, scale: int
-    ):
-        self.width = width * tilewidth * scale
-        self.height = height * tileheight * scale
-        self.center = (self.width / 2, self.height / 2)
-        self.scale = scale
-
-    def load_tile_set(self, tile_set: str, scale: int):
+    def load_tile_set(self, tile_set: str):
         tiles = []
         with open(tile_set[3:], "r") as file:
             tile_data = json.load(file)
             img_set = pygame.image.load("Tile_Sets/" + tile_data["image"])
-            img_set = pygame.transform.scale(
-                img_set,
-                (tile_data["imagewidth"] * scale, tile_data["imageheight"] * scale),
-            )
             # find width and height of image based on tiles
             for y in range(int(tile_data["imageheight"] / tile_data["tileheight"])):
                 for x in range(int(tile_data["imagewidth"] / tile_data["tilewidth"])):
@@ -40,55 +40,83 @@ class Level:
                             img_set,
                             y,
                             x,
-                            tile_data["tilewidth"] * scale,
-                            tile_data["tileheight"] * scale,
+                            tile_data["tilewidth"],
+                            tile_data["tileheight"],
                         )
                     )
         return tuple(tiles)
 
     def create_tiles(
-        self, layer_data: dict, tilewidth: int, tileheight: int, scale: int, *groups
+        self, layer_data: dict, tilewidth: int, tileheight: int, collidable: bool
     ):
+        tiles = []
         for y in range(layer_data["height"]):
             for x in range(layer_data["width"]):
                 current_tile = layer_data["data"][(y * layer_data["width"]) + x]
                 if current_tile != 0:
-                    Tile(
-                        pygame.Vector2(x * tilewidth * scale, y * tileheight * scale),
-                        self.tile_sets[current_tile - 1],
-                        tilewidth,
-                        tileheight,
-                        scale,
-                        False,
-                        *groups,
+                    tiles.append(
+                        Tile(
+                            self.tile_sets[current_tile - 1],
+                            pygame.Vector2(x * tilewidth, y * tileheight),
+                            tilewidth,
+                            tileheight,
+                            collidable,
+                        )
                     )
+        return tiles
 
-    def load_level(self, level_file: str, scale: int):
+    def hash_tiles(self):
+        for layer in self.layers:
+            for tile in self.layers[layer]:
+                self.hash_map.insert_rect(tile)
+
+    def load_level(self, level_file: str):
         with open(level_file, "r") as file:
             level_data = json.load(file)
-            self.set_dimensions(
-                level_data["width"],
-                level_data["height"],
-                level_data["tilewidth"],
-                level_data["tileheight"],
-                scale,
-            )
+            self.width = level_data["width"] * level_data["tilewidth"]
+            self.height = level_data["height"] * level_data["tileheight"]
             # load tile sets
             for tile_set in level_data["tilesets"]:
-                self.tile_sets += self.load_tile_set(tile_set["source"], scale)
+                self.tile_sets += self.load_tile_set(tile_set["source"])
             # load create layers from layer data
             for layer in level_data["layers"]:
-                group_list = [self.tiles]
-                if (
-                    layer["properties"][0]["name"] == "collidable"
-                    and layer["properties"][0]["value"]
-                ):
-                    group_list.append(self.colliders)
-                self.create_tiles(
+                layer_settings = {}
+                for setting in layer["properties"]:
+                    layer_settings[setting["name"]] = setting["value"]
+                self.layers[layer["id"]] = self.create_tiles(
                     layer,
                     level_data["tilewidth"],
                     level_data["tileheight"],
-                    scale,
-                    group_list,
+                    layer_settings["collidable"],
                 )
         del self.tile_sets
+        self.hash_tiles()
+
+    def get_rect_dimensions(self, rect: pygame.Rect):
+        topleft = (
+            floor(rect.topleft[0] / self.container_size),
+            floor(rect.topleft[1] / self.container_size),
+        )
+        return (
+            floor(rect.topright[0] / self.container_size) - topleft[0] + 1,  # x
+            floor(rect.bottomleft[1] / self.container_size) - topleft[1] + 1,  # y
+            topleft[0],
+            topleft[1],
+            topleft[0] + (topleft[1] * self.width),  # topleft position
+        )
+
+    def query_rect(self, rect: pygame.Rect):
+        found_objects = []
+        dimensions = self.get_rect_dimensions(rect)
+        for y in range(dimensions[1]):
+            for x in range(dimensions[0]):
+                found_objects += self.query(dimensions[2] + x + (y * self.width))
+        return found_objects, dimensions
+
+    def get_nearest_colliders(self, query_rect: pygame.Rect):
+        return [
+            tile for tile in self.query_rect(query_rect)[0] if tile.collidable
+        ]
+
+    def get_active_tiles(self, query_rect: pygame.Rect):
+        return self.query_rect(query_rect)
